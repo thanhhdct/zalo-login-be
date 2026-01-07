@@ -2,12 +2,13 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const axios = require("axios");
 const cors = require("cors");
+const verifyGoogleToken = require("./google");
 
 const app = express();
 const PORT = 4000;
 
 const ZALO_APP_ID = "2044785096131277288";
-const ZALO_APP_SECRET = "";
+const ZALO_APP_SECRET = "0UW7Y9L19181VxS2blRf";
 const user = {
   id: 1,
   user: "test",
@@ -71,6 +72,28 @@ app.get("/zalo/callback", async (req, res) => {
   user.id = zaloUser.id;
   user.profilePicture = zaloUser.picture.data.url;
   res.redirect(`http://localhost:5173/login-zalo?code=${code}`);
+});
+
+app.post("/auth/google", async (req, res) => {
+  try {
+    const { token } = req.body;
+    if (!token) {
+      return res.status(400).json({ message: "Missing token" });
+    }
+
+    const googleUser = await verifyGoogleToken(token);
+    console.log("🚀 ~ googleUser:", googleUser);
+
+    res.json({
+      id: googleUser.sub,
+      email: googleUser.email,
+      user: googleUser.name,
+      profilePicture: googleUser.picture,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(401).json({ message: "Invalid Google token" });
+  }
 });
 
 app.get("/user", async (req, res) => {
