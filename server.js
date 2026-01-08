@@ -3,6 +3,9 @@ const bodyParser = require("body-parser");
 const axios = require("axios");
 const cors = require("cors");
 const verifyGoogleToken = require("./google");
+const { OAuth2Client } = require("google-auth-library");
+
+require("dotenv").config();
 
 const app = express();
 const PORT = 4000;
@@ -93,6 +96,51 @@ app.post("/auth/google", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(401).json({ message: "Invalid Google token" });
+  }
+});
+
+app.post("/auth/custom/google", async (req, res) => {
+  const { code } = req.body;
+
+  if (!code) {
+    return res.status(400).json({ message: "Missing access token" });
+  }
+
+  try {
+    const params = new URLSearchParams({
+      code,
+      client_id: process.env.GOOGLE_CLIENT_ID,
+      client_secret: process.env.GOOGLE_CLIENT_SECRET, // ❗ nếu là confidential client
+      redirect_uri: process.env.GOOGLE_REDIRECT_URI,
+      grant_type: "authorization_code",
+      // code_verifier: "..." // nếu dùng PKCE
+    });
+
+    const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: params.toString(),
+    });
+
+    const tokenData = await tokenRes.json();
+
+    const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+    const ticket = await client.verifyIdToken({
+      idToken: tokenData.id_token,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+
+    const data = ticket.getPayload();
+
+    res.json({
+      id: data.sub,
+      user: data.name,
+      email: data.email,
+      profilePicture: data.picture,
+    });
+  } catch (err) {
+    res.status(401).json({ message: "Invalid Google access token" });
   }
 });
 
